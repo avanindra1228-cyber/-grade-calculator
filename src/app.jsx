@@ -13,7 +13,7 @@ import {
   ChevronRight,
   BarChart3,
   Percent,
-  GraduationCap // Added missing icon
+  GraduationCap
 } from 'lucide-react';
 
 const firebaseConfig = {
@@ -104,16 +104,17 @@ export default function App() {
     }
   };
 
-  const getAvg = (grades) => (!grades || grades.length === 0) ? null : grades.reduce((a, b) => a + b, 0) / grades.length;
+  const getAvg = (grades) => (!grades || !Array.isArray(grades) || grades.length === 0) ? null : grades.reduce((a, b) => a + b, 0) / grades.length;
 
   const calculateSWGrade = (sw, weights) => {
+    if (!sw || !weights) return null;
     const m = getAvg(sw.major), n = getAvg(sw.minor), o = getAvg(sw.other);
     if (m === null && n === null && o === null) return null;
     let totalWeight = 0, earned = 0;
     if (m !== null) { earned += m * (weights.major / 100); totalWeight += weights.major; }
     if (n !== null) { earned += n * (weights.minor / 100); totalWeight += weights.minor; }
     if (o !== null) { earned += o * (weights.other / 100); totalWeight += weights.other; }
-    return totalWeight === 0 ? 0 : (earned / totalWeight) * 100;
+    return totalWeight === 0 ? 0 : (earned / (totalWeight / 100));
   };
 
   const calculateSemesterGrade = (course, semIdx) => {
@@ -183,7 +184,7 @@ export default function App() {
                     <div key={semIdx} className="space-y-4">
                       <div className="flex justify-between items-end border-b border-slate-100 pb-2">
                         <h4 className="font-black text-[11px] text-slate-400 uppercase tracking-widest">Semester {semIdx + 1}</h4>
-                        <span className="font-black text-slate-900 text-sm">{calculateSemesterGrade(course, semIdx) || '--'}% Avg</span>
+                        <span className="font-black text-slate-900 text-sm">{(calculateSemesterGrade(course, semIdx) ?? '--')}% Avg</span>
                       </div>
                       <div className="flex gap-2">
                         {[0, 1, 2].map(i => {
@@ -193,7 +194,7 @@ export default function App() {
                           return (
                             <button key={i} onClick={() => setEditingSW({ courseId: course.id, swIdx: actualIdx })} className="flex-1 bg-slate-50 hover:bg-white hover:shadow-md border border-slate-100 p-3 rounded-2xl transition-all group">
                               <p className="text-[9px] font-black text-slate-400 uppercase mb-1">SW{actualIdx + 1}</p>
-                              <p className="text-lg font-black text-slate-700">{grade ? Math.round(grade) : '--'}</p>
+                              <p className="text-lg font-black text-slate-700">{grade !== null ? Math.round(grade) : '--'}</p>
                             </button>
                           );
                         })}
@@ -275,8 +276,9 @@ export default function App() {
             <div className="p-8 overflow-y-auto space-y-12 no-scrollbar">
               {['major', 'minor', 'other'].map(cat => {
                 const course = courses.find(c => c.id === editingSW.courseId);
-                const grades = course?.sixWeeks[editingSW.swIdx][cat] || [];
-                const weight = course.weights[cat];
+                const sw = course?.sixWeeks[editingSW.swIdx];
+                const grades = sw?.[cat] || [];
+                const weight = course?.weights[cat] || 0;
                 const avg = getAvg(grades) || 0;
                 return (
                   <div key={cat} className="animate-in slide-in-from-right duration-300">
@@ -297,17 +299,17 @@ export default function App() {
                           <input type="number" className="w-24 h-20 bg-slate-50 border border-slate-200 rounded-[20px] text-center font-black text-xl outline-none focus:ring-4 focus:ring-blue-500/10 focus:bg-white focus:border-blue-500 transition-all" value={g} onChange={(e) => {
                             const newGrades = [...grades];
                             newGrades[gIdx] = Math.min(Math.max(parseInt(e.target.value) || 0, 0), 150);
-                            saveData(courses.map(c => c.id === editingSW.courseId ? {...c, sixWeeks: c.sixWeeks.map((sw, sIdx) => sIdx === editingSW.swIdx ? {...sw, [cat]: newGrades} : sw)} : c));
+                            saveData(courses.map(c => c.id === editingSW.courseId ? {...c, sixWeeks: c.sixWeeks.map((swData, sIdx) => sIdx === editingSW.swIdx ? {...swData, [cat]: newGrades} : swData)} : c));
                           }}/>
                           <button onClick={() => {
                             const newGrades = grades.filter((_, i) => i !== gIdx);
-                            saveData(courses.map(c => c.id === editingSW.courseId ? {...c, sixWeeks: c.sixWeeks.map((sw, sIdx) => sIdx === editingSW.swIdx ? {...sw, [cat]: newGrades} : sw)} : c));
+                            saveData(courses.map(c => c.id === editingSW.courseId ? {...c, sixWeeks: c.sixWeeks.map((swData, sIdx) => sIdx === editingSW.swIdx ? {...swData, [cat]: newGrades} : swData)} : c));
                           }} className="absolute -top-2 -right-2 bg-rose-500 text-white rounded-lg p-1 opacity-0 group-hover:opacity-100 transition-all shadow-md"><X size={12}/></button>
                         </div>
                       ))}
                       <button onClick={() => {
                         const newGrades = [...grades, 100];
-                        saveData(courses.map(c => c.id === editingSW.courseId ? {...c, sixWeeks: c.sixWeeks.map((sw, sIdx) => sIdx === editingSW.swIdx ? {...sw, [cat]: newGrades} : sw)} : c));
+                        saveData(courses.map(c => c.id === editingSW.courseId ? {...c, sixWeeks: c.sixWeeks.map((swData, sIdx) => sIdx === editingSW.swIdx ? {...swData, [cat]: newGrades} : swData)} : c));
                       }} className="w-24 h-20 border-2 border-dashed border-slate-200 rounded-[20px] flex items-center justify-center text-slate-300 hover:border-blue-500 hover:text-blue-500 hover:bg-blue-50 transition-all"><Plus size={28}/></button>
                     </div>
                   </div>
@@ -318,7 +320,9 @@ export default function App() {
             <div className="p-8 bg-slate-900 text-white flex justify-between items-center rounded-t-[40px]">
               <div>
                 <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Six Weeks Projected</p>
-                <p className="text-4xl font-black">{Math.round(calculateSWGrade(courses.find(c => c.id === editingSW.courseId).sixWeeks[editingSW.swIdx], courses.find(c => c.id === editingSW.courseId).weights))}%</p>
+                <p className="text-4xl font-black">
+                  {Math.round(calculateSWGrade(courses.find(c => c.id === editingSW.courseId)?.sixWeeks[editingSW.swIdx], courses.find(c => c.id === editingSW.courseId)?.weights) || 0)}%
+                </p>
               </div>
               <button onClick={() => setEditingSW(null)} className="bg-white text-slate-900 px-10 py-4 rounded-2xl font-black text-sm hover:bg-slate-100 transition-all shadow-xl">Close View</button>
             </div>
